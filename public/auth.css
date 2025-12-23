@@ -1,0 +1,94 @@
+/* Auth Styles */
+.auth-section {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.github-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #24292e;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: background-color 0.2s;
+}
+
+.github-btn:hover {
+  background-color: #1b1f23;
+}
+
+.auth-success {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background-color: rgba(34, 197, 94, 0.1);
+  color: var(--success);
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.logout-link {
+  margin-left: auto;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.logout-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.auth-note {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.azure-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #0078D4; /* Azure Blue */
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: background-color 0.2s;
+}
+
+.azure-btn:hover {
+  background-color: #0060B0;
+}
+
+.azure-icon {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.disconnect-btn {
+  margin-left: auto;
+  color: var(--error);
+  border: 1px solid var(--error);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  position:relative;
+  top: 10px;
+}
+
+.disconnect-btn:hover {
+  background-color: var(--error);
+  color: white;
+}

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI RCA Service Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="auth.css">
+  <link rel="stylesheet" href="saas.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>AI RCA Service</h1>
+      <div class="toggle-container">
+        <span id="service-status-text">Service Active</span>
+        <label class="switch">
+          <input type="checkbox" id="service-toggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </header>
+
+    <main>
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+        <button class="tab-btn" onclick="switchTab('logs')">Logs</button>
+        <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
+      </div>
+
+      <!-- SaaS Dashboard -->
+      <section id="dashboard-section" class="content-section active">
+        <div class="dashboard-header">
+          <h2>Your Repositories</h2>
+          <div class="plan-badge" id="current-plan-badge" style="display: none;">Free Plan</div>
+        </div>
+
+        <div id="repo-list" class="repo-list">
+          <p class="loading">Loading repositories...</p>
+        </div>
+
+        <div class="add-repo-box">
+          <h3>Add Repository</h3>
+          <div class="form-group">
+            <input type="text" id="saas-org-url" placeholder="Azure DevOps Org URL (e.g. https://dev.azure.com/myorg)" />
+            <button id="fetch-repos-btn" class="secondary-btn">Fetch Repos</button>
+          </div>
+          <div class="form-group" id="repo-select-container" style="display:none;">
+            <select id="repo-select">
+              <option value="">Select a repository...</option>
+            </select>
+            <button id="connect-repo-btn" class="primary-btn">Connect</button>
+          </div>
+          <div id="add-repo-message"></div>
+        </div>
+
+        <div class="pricing-section" style="display: none;">
+          <h3>Upgrade Plan</h3>
+          <div class="pricing-cards">
+            <div class="card" onclick="upgradeTo('free')">
+              <h4>Free</h4>
+              <p class="price">$0/mo</p>
+              <ul><li>1 Repository</li></ul>
+            </div>
+            <div class="card" onclick="upgradeTo('standard')">
+              <h4>Standard</h4>
+              <p class="price">$10/mo</p>
+              <ul><li>10 Repositories</li></ul>
+            </div>
+            <div class="card" onclick="upgradeTo('pro')">
+              <h4>Pro</h4>
+              <p class="price">$50/mo</p>
+              <ul><li>Unlimited Repositories</li></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="logs-section" class="content-section" style="display: none;">
+        <h2>Recent Activity</h2>
+        <div id="logs-container" class="logs-container">
+          <p class="loading">Loading logs...</p>
+        </div>
+      </section>
+
+      <section id="settings-section" class="content-section" style="display: none;">
+        <h2>Configuration</h2>
+        
+        <div id="auth-section" class="auth-section">
+          <!-- Injected by JS -->
+        </div>
+
+        <form id="settings-form">
+
+          
+
+
+          <div class="form-group">
+            <label for="DEVELOPER_EMAIL">Developer Email (for RCA Reports)</label>
+            <input type="email" id="DEVELOPER_EMAIL" placeholder="dev@example.com" />
+            <small>If set, RCA reports will be sent to this email instead of the PR author.</small>
+          </div>
+
+          <div id="settings-message"></div>
+          <button type="button" id="save-settings-btn" class="primary-btn">Save Settings</button>
+        </form>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+  <script src="settings.js"></script>
+  <script src="saas.js"></script>
+  <script>
+    function switchTab(tabName) {
+      document.querySelectorAll('.content-section').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      
+      document.getElementById(`${tabName}-section`).style.display = 'block';
+      document.querySelector(`button[onclick="switchTab('${tabName}')"]`).classList.add('active');
+    }
+  </script>
+</body>
+</html>
