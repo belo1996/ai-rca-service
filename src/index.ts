@@ -197,8 +197,33 @@ app.post('/api/config', (req, res) => {
 });
 
 import { listAzureRepositories, connectRepository, disconnectRepository } from './services/repoService';
-import { getUserRepositories, getSubscription, toggleUserStatus } from './services/dbService';
+import { getUserRepositories, getSubscription, toggleUserStatus, getSettings, upsertSettings } from './services/dbService';
 import { upgradePlan } from './services/subscriptionService';
+
+// ... (existing imports)
+
+// Settings Endpoints
+app.get('/api/settings', (req, res) => {
+  if (!req.isAuthenticated()) return res.status(401).send('Unauthorized');
+  const settings = getSettings((req.user as any).id);
+  res.json(settings);
+});
+
+app.post('/api/settings', (req, res) => {
+  if (!req.isAuthenticated()) return res.status(401).send('Unauthorized');
+  const { notification_emails, auto_detect_developer, ai_model, deep_thinking, send_emails } = req.body;
+  
+  upsertSettings({
+    user_id: (req.user as any).id,
+    notification_emails,
+    auto_detect_developer: auto_detect_developer ? 1 : 0,
+    ai_model,
+    deep_thinking: deep_thinking ? 1 : 0,
+    send_emails: send_emails ? 1 : 0
+  });
+  
+  res.json({ success: true });
+});
 
 // ... (existing imports)
 

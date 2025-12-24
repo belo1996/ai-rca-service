@@ -153,30 +153,54 @@ export const postComment = async (repoId: string, pullRequestId: number, body: s
   }
 };
 
+const getWitApi = async (token: string, orgUrl: string) => {
+  if (!orgUrl || !token) {
+    throw new Error('Azure DevOps Org URL or Token not provided.');
+  }
+  const authHandler = azdev.getPersonalAccessTokenHandler(token);
+  const connection = new azdev.WebApi(orgUrl, authHandler);
+  return await connection.getWorkItemTrackingApi();
+};
+
 export const getWorkItems = async (repoId: string, pullRequestId: number, token: string, orgUrl: string, project?: string): Promise<any[]> => {
   try {
+    console.log(`[WorkItem] Fetching linked items for PR #${pullRequestId} in repo ${repoId}...`);
     const gitApi = await getGitApi(token, orgUrl);
     const refs = await gitApi.getPullRequestWorkItemRefs(repoId, pullRequestId, project);
     
+    console.log(`[WorkItem] Found ${refs?.length || 0} linked items.`);
+    
     if (!refs || refs.length === 0) return [];
 
-    // We need to fetch details or just return IDs. 
-    // The refs contain url and id.
-    return refs.map(ref => ({
-      id: ref.id,
-      url: ref.url
+    // Fetch details to get the Work Item Type
+    const ids = refs.map(ref => parseInt(ref.id || '0')).filter(id => id > 0);
+    
+    if (ids.length === 0) return [];
+
+    const witApi = await getWitApi(token, orgUrl);
+    const workItems = await witApi.getWorkItems(ids, ['System.WorkItemType', 'System.Title'], undefined, undefined, undefined, project);
+
+    return workItems.map(wi => ({
+      id: wi.id,
+      url: wi.url,
+      type: wi.fields?.['System.WorkItemType'],
+      title: wi.fields?.['System.Title']
     }));
-  } catch (error) {
-    console.error('Error fetching linked work items:', error);
+  } catch (error: any) {
+    console.error('Error fetching linked work items:', error.message);
+    if (error.response) {
+      console.error('Azure DevOps Error Response (GetLinks):', JSON.stringify(error.response.data, null, 2));
+    }
     return [];
   }
 };
 
 export const postWorkItemComment = async (workItemId: string, comment: string, token: string, orgUrl: string, project?: string): Promise<void> => {
   try {
-    // Work Item comments API: POST https://dev.azure.com/{organization}/{project}/_apis/wit/workItems/{id}/comments?api-version=7.1
-    const apiUrl = `${orgUrl.replace(/\/$/, '')}/${project ? project + '/' : ''}_apis/wit/workItems/${workItemId}/comments?api-version=7.1`;
-    
+    // Work Item comments API: POST https://dev.azure.com/{organization}/{project}/_apis/wit/workItems/{id}/comments?api-version=7.1-preview
+    const apiUrl = `${orgUrl.replace(/\/$/, '')}/${project ? project + '/' : ''}_apis/wit/workItems/${workItemId}/comments?api-version=7.1-preview`;
+    console.log(`[WorkItem] Posting comment to: ${apiUrl}`);
+
     await axios.post(apiUrl, {
       text: comment
     }, {
@@ -187,9 +211,11 @@ export const postWorkItemComment = async (workItemId: string, comment: string, t
     });
     
     console.log(`Posted comment to Work Item #${workItemId}`);
-  } catch (error) {
-    console.error(`Error posting comment to Work Item ${workItemId}:`, error);
-    // Don't throw, just log failure for individual work items
+  } catch (error: any) {
+    console.error(`Error posting comment to Work Item ${workItemId}:`, error.message);
+    if (error.response) {
+      console.error('Azure DevOps Error Response (Comment):', JSON.stringify(error.response.data, null, 2));
+    }
   }
 };
 
@@ -214,8 +240,40 @@ export const updateWorkItem = async (workItemId: string, fields: any, token: str
     });
     
     console.log(`Updated Work Item #${workItemId} fields:`, Object.keys(fields));
+  } catch (error: any) {
+    console.error(`Error updating Work Item ${workItemId}:`, error.message);
+    if (error.response) {
+      console.error('Azure DevOps Error Response:', JSON.stringify(error.response.data, null, 2));
+    }
+  }
+};
+
+export const getPullRequestComments = async (repoId: string, pullRequestId: number, token: string, orgUrl: string, project?: string): Promise<string[]> => {
+  try {
+    const gitApi = await getGitApi(token, orgUrl);
+    const threads = await gitApi.getThreads(repoId, pullRequestId, project);
+    
+    if (!threads) return [];
+
+    const comments: string[] = [];
+    
+    for (const thread of threads) {
+      if (!thread.comments || thread.isDeleted) continue;
+      
+      for (const comment of thread.comments) {
+        if (!comment.content || comment.commentType === 1) continue; // Skip system comments (type 1) if needed, usually type 1 is text
+        // Actually type 1 is text, type 2 is code change, type 3 is system. We want text.
+        // Let's just take content if it exists and is not empty.
+        
+        const author = comment.author?.displayName || 'Unknown';
+        comments.push(`[${author}]: ${comment.content}`);
+      }
+    }
+    
+    return comments;
   } catch (error) {
-    console.error(`Error updating Work Item ${workItemId}:`, error);
+    console.error('Error fetching PR comments:', error);
+    return [];
   }
 };
 
@@ -258,5 +316,34 @@ export const deleteWebhook = async (token: string, orgUrl: string, webhookId: st
   } catch (error) {
     console.error('Error deleting webhook:', error);
     // Don't throw, just log. We want to proceed with DB deletion even if webhook fails (orphan cleanup).
+  }
+};
+
+export const getPreviousCommits = async (repoId: string, branchName: string, token: string, orgUrl: string, project?: string, top: number = 10): Promise<any[]> => {
+  try {
+    const gitApi = await getGitApi(token, orgUrl);
+    
+    // branchName usually comes as 'refs/heads/main', we might need to strip refs/heads or pass as is.
+    // getCommits searchCriteria takes itemVersion.
+    
+    const searchCriteria: GitInterfaces.GitQueryCommitsCriteria = {
+      itemVersion: {
+        version: branchName.replace('refs/heads/', ''),
+        versionType: GitInterfaces.GitVersionType.Branch
+      },
+      top: top
+    };
+
+    const commits = await gitApi.getCommits(repoId, searchCriteria, project);
+    
+    return commits.map((commit) => ({
+      sha: commit.commitId,
+      message: commit.comment,
+      author: commit.author?.name,
+      date: commit.author?.date,
+    }));
+  } catch (error) {
+    console.error('Error fetching previous commits:', error);
+    return [];
   }
 };

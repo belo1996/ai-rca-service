@@ -10,29 +10,69 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>AI RCA Service</h1>
-      <div class="toggle-container">
-        <span id="service-status-text">Service Active</span>
-        <label class="switch">
-          <input type="checkbox" id="service-toggle" checked>
-          <span class="slider"></span>
-        </label>
-      </div>
-    </header>
-
-    <main>
-      <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
-        <button class="tab-btn" onclick="switchTab('logs')">Logs</button>
-        <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-wrapper">
+          <img src="/vois-logo.png" alt="Vois Logo" class="vois-logo-img">
+          <h1 class="brand-title">AI RCA</h1>
+        </div>
+        <button id="collapse-btn" class="collapse-btn" title="Toggle Sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+        </button>
       </div>
 
-      <!-- SaaS Dashboard -->
+      <nav class="sidebar-nav">
+        <button class="nav-item active" onclick="switchTab('dashboard')">
+          <span class="icon">📊</span>
+          <span class="label">Dashboard</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('logs')">
+          <span class="icon">📝</span>
+          <span class="label">Logs</span>
+        </button>
+        <button class="nav-item" onclick="switchTab('settings')">
+          <span class="icon">⚙️</span>
+          <span class="label">Settings</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="service-status">
+          <div class="status-indicator">
+            <div class="dot"></div>
+            <span class="status-text" id="service-status-text">Active</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="service-toggle" checked>
+            <span class="slider round"></span>
+          </label>
+        </div>
+        
+        <div id="auth-section" class="auth-section-sidebar">
+          <!-- Auth content injected by JS -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Dashboard Tab -->
       <section id="dashboard-section" class="content-section active">
+        <header class="content-header">
+          <h2>Dashboard</h2>
+          <div class="header-actions">
+            <button class="refresh-btn secondary-btn" onclick="fetchRepos()">
+              Refresh
+            </button>
+          </div>
+        </header>
+
         <div class="dashboard-header">
-          <h2>Your Repositories</h2>
+          <h3>Your Repositories</h3>
           <div class="plan-badge" id="current-plan-badge" style="display: none;">Free Plan</div>
         </div>
 
@@ -54,70 +94,119 @@
           </div>
           <div id="add-repo-message"></div>
         </div>
-
-        <div class="pricing-section" style="display: none;">
-          <h3>Upgrade Plan</h3>
-          <div class="pricing-cards">
-            <div class="card" onclick="upgradeTo('free')">
-              <h4>Free</h4>
-              <p class="price">$0/mo</p>
-              <ul><li>1 Repository</li></ul>
-            </div>
-            <div class="card" onclick="upgradeTo('standard')">
-              <h4>Standard</h4>
-              <p class="price">$10/mo</p>
-              <ul><li>10 Repositories</li></ul>
-            </div>
-            <div class="card" onclick="upgradeTo('pro')">
-              <h4>Pro</h4>
-              <p class="price">$50/mo</p>
-              <ul><li>Unlimited Repositories</li></ul>
-            </div>
-          </div>
-        </div>
       </section>
 
+      <!-- Logs Tab -->
       <section id="logs-section" class="content-section" style="display: none;">
-        <h2>Recent Activity</h2>
-        <div id="logs-container" class="logs-container">
+        <header class="content-header">
+          <h2>System Logs</h2>
+          <button class="clear-btn secondary-btn" onclick="clearLogs()">Clear Logs</button>
+        </header>
+        <div class="logs-container" id="logs-container">
           <p class="loading">Loading logs...</p>
         </div>
       </section>
 
+      <!-- Settings Tab -->
       <section id="settings-section" class="content-section" style="display: none;">
-        <h2>Configuration</h2>
+        <header class="content-header">
+          <h2>Settings</h2>
+        </header>
         
-        <div id="auth-section" class="auth-section">
-          <!-- Injected by JS -->
-        </div>
-
         <form id="settings-form">
+          <!-- Email List Moved Below Toggle -->
 
-          
-
+          <div class="form-group checkbox-group">
+            <label class="checkbox-container">
+              <input type="checkbox" id="auto_detect_developer" name="auto_detect_developer">
+              <span class="checkmark"></span>
+              <span class="label-text">Auto-detect Developer Email</span>
+            </label>
+            <small>Automatically send email to the PR author.</small>
+          </div>
 
           <div class="form-group">
-            <label for="DEVELOPER_EMAIL">Developer Email (for RCA Reports)</label>
-            <input type="email" id="DEVELOPER_EMAIL" placeholder="dev@example.com" />
-            <small>If set, RCA reports will be sent to this email instead of the PR author.</small>
+            <label for="ai_model">AI Model</label>
+            <select id="ai_model" name="ai_model" class="select-input">
+              <option value="gpt-4o">GPT-4o (Best Quality)</option>
+              <option value="gpt-4-turbo">GPT-4 Turbo</option>
+              <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Fastest)</option>
+            </select>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <label class="checkbox-container">
+              <input type="checkbox" id="send_emails" name="send_emails" checked>
+              <span class="checkmark"></span>
+              <span class="label-text">Enable Email Notifications</span>
+            </label>
+            <small>Send emails to the configured addresses when an RCA is generated.</small>
+          </div>
+
+          <!-- Email List Section (Conditional) -->
+          <div id="email-settings-container" class="nested-settings" style="display: none;">
+            <div class="form-group">
+              <label>Notification Emails</label>
+              <div class="email-input-group">
+                <input type="email" id="new-email-input" placeholder="Enter email address">
+                <button type="button" id="add-email-btn" class="secondary-btn">Add</button>
+              </div>
+              <ul id="email-list" class="email-list"></ul>
+              <input type="hidden" id="notification_emails" name="notification_emails">
+            </div>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <label class="checkbox-container">
+              <input type="checkbox" id="deep_thinking" name="deep_thinking">
+              <span class="checkmark"></span>
+              <span class="label-text">Enable Deep Thinking</span>
+            </label>
+            <small>Analyze PR comments and discussions for better context.</small>
           </div>
 
           <div id="settings-message"></div>
-          <button type="button" id="save-settings-btn" class="primary-btn">Save Settings</button>
+          <button type="submit" id="save-settings-btn" class="primary-btn">Save Settings</button>
         </form>
       </section>
     </main>
   </div>
+
   <script src="app.js"></script>
   <script src="settings.js"></script>
   <script src="saas.js"></script>
   <script>
+    // Tab Switching Logic
     function switchTab(tabName) {
+      // Hide all sections
       document.querySelectorAll('.content-section').forEach(el => el.style.display = 'none');
-      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      // Deactivate all nav items
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
       
-      document.getElementById(`${tabName}-section`).style.display = 'block';
-      document.querySelector(`button[onclick="switchTab('${tabName}')"]`).classList.add('active');
+      // Show target section
+      const targetSection = document.getElementById(`${tabName}-section`);
+      if (targetSection) targetSection.style.display = 'block';
+      
+      // Activate target nav item
+      const targetBtn = document.querySelector(`button[onclick="switchTab('${tabName}')"]`);
+      if (targetBtn) targetBtn.classList.add('active');
+    }
+
+    // Sidebar Collapse Logic
+    const sidebar = document.getElementById('sidebar');
+    const collapseBtn = document.getElementById('collapse-btn');
+    
+    if (collapseBtn) {
+      collapseBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+        // Rotate icon
+        const icon = collapseBtn.querySelector('svg');
+        if (sidebar.classList.contains('collapsed')) {
+          icon.style.transform = 'rotate(180deg)';
+        } else {
+          icon.style.transform = 'rotate(0deg)';
+        }
+      });
     }
   </script>
 </body>

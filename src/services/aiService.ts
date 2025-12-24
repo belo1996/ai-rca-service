@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import OpenAI, { AzureOpenAI } from 'openai';
 import dotenv from 'dotenv';
 import { getConfig } from './configService';
 
@@ -18,62 +18,96 @@ const getOpenAI = () => {
 
   if (isAzure) {
     console.log(`[AI Service] Azure Config: Endpoint=${endpoint}, Deployment=${deployment}, Version=${apiVersion}`);
+    return new AzureOpenAI({
+      apiKey: apiKey,
+      apiVersion: apiVersion,
+      endpoint: endpoint,
+      deployment: deployment
+    });
   }
 
   return new OpenAI({
     apiKey: apiKey,
-    baseURL: isAzure ? `${endpoint}/openai/deployments/${deployment}` : undefined,
-    defaultQuery: isAzure ? { 'api-version': apiVersion } : undefined,
-    defaultHeaders: isAzure ? { 'api-key': process.env.AZURE_OPENAI_API_KEY } : undefined,
   });
 };
 
-export const generateRCA = async (diff: string, commits: any[]): Promise<string> => {
-  const commitMessages = commits.map(c => `- ${c.message} (by ${c.author})`).join('\n');
-  
-  const prompt = `
-You are an expert software engineer and debugger.
-A Pull Request has been opened to fix a bug.
-Your task is to analyze the code changes and the commit history to determine the Root Cause of the bug.
+export const generateRCA = async (diff: string, commits: any[], options: { model?: string, deepThinking?: boolean, comments?: string[], previousCommits?: any[] } = {}): Promise<string> => {
+  try {
+    const client = getOpenAI();
+    const isAzure = client instanceof AzureOpenAI;
 
-Here is the Commit History of this PR:
-${commitMessages}
+    const deploymentName = options.model || process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'rca-gpt-4';
+    
+    if (options.deepThinking) {
+      console.log(`[AI Service] Deep Thinking Enabled. Analyzing ${options.comments?.length || 0} comments.`);
+    }
 
-Here is the Diff of the changes (The Fix):
-\`\`\`diff
-${diff.substring(0, 10000)} // Truncate to avoid token limits if necessary
-\`\`\`
+    const commitSummaries = commits.map(c => `- ${c.comment} (by ${c.author?.name})`).join('\n');
+    const commentsContext = options.deepThinking && options.comments?.length 
+      ? `\n\nHere are the discussions/comments on this PR:\n${options.comments.join('\n')}`
+      : '';
 
-Based on this, please provide a Root Cause Analysis (RCA) report.
-Structure your response as follows:
+    const previousCommitsContext = options.deepThinking && options.previousCommits?.length
+      ? `\n\n**Previous Commit History (Context from Target Branch):**\n${options.previousCommits.map(c => `- ${c.message} (by ${c.author})`).join('\n')}`
+      : '';
+
+    const prompt = `
+You are a Senior Site Reliability Engineer (SRE) and an expert in Root Cause Analysis (RCA).
+Your task is to analyze the following Git Pull Request (Diff and Commit History)${options.deepThinking ? ' and related discussions/history' : ''} to determine the root cause of the bug it fixes.
+
+**Context:**
+- The PR likely fixes a bug.
+- You have the file changes (Diff) and the commit messages.
+${options.deepThinking ? '- You also have the team\'s discussion comments and previous commit history which may contain clues.' : ''}
+
+**Input Data:**
+
+**Commit History:**
+${commitSummaries}
+${commentsContext}
+${previousCommitsContext}
+
+**Code Changes (Diff):**
+${diff}
+
+Based on this, please provide a comprehensive Root Cause Analysis (RCA) report in Markdown format.
+Start with the **Category** of the bug. Choose exactly one from: [Code, Configuration, Design, Deployment].
+
+Structure the report as follows:
+**Category**: [One of Code, Configuration, Design, Deployment]
+
 ## 🔍 Root Cause Analysis
-**Category**: [Code | Configuration | Deployment | Design]
-**Summary**: A brief summary of what the bug was.
-**Root Cause**: Explain the specific logic error, missing validation, or race condition that caused the issue.
-**The Fix**: Explain how the changes in this PR fix the issue.
-**Recommendations**: (Optional) Any suggestions to prevent this in the future.
+
+**Summary**: 
+[Brief summary of the bug and the fix]
+
+**Root Cause**:
+[Detailed explanation of why the bug occurred. Was it a logic error? Missing validation? Race condition? etc.]
+
+**The Fix**:
+[Explain how the code changes fix the issue]
+
+**Recommendations**:
+[Suggestions to prevent this in the future, e.g., add a test case, improve logging, refactor code]
 `;
 
-  try {
-    const completion = await getOpenAI().chat.completions.create({
+    const completion = await client.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
-      model: process.env.AZURE_OPENAI_ENDPOINT ? '' : 'gpt-4o', 
+      model: isAzure ? deploymentName : (options.model || 'gpt-4o'),
     });
 
     return completion.choices[0].message.content || 'Failed to generate RCA.';
   } catch (error: any) {
     const errorMessage = error.message || String(error);
-    // Log to both console and UI logs
     console.error('Error generating RCA:', error);
     
-    // We need to import addLog dynamically to avoid circular dependencies if any, 
-    // or just assume it's safe. Since aiService is a leaf, it should be fine.
-    // But let's use console for now and ensure the caller logs it too.
-    // Actually, the caller (rcaService) doesn't catch this error because we return a string.
-    // So we MUST log it here to see it in the UI.
-    
-    const { addLog } = require('../services/logService');
-    addLog('error', `AI Generation Failed: ${errorMessage}`, { stack: error.stack, response: error.response?.data });
+    // Log to UI logs via logService (dynamically imported to avoid circular dep if needed)
+    try {
+      const { addLog } = require('./logService');
+      addLog('error', `AI Generation Failed: ${errorMessage}`, { stack: error.stack });
+    } catch (e) {
+      console.error('Failed to log error to DB:', e);
+    }
 
     return `Error generating RCA. Please check logs. Details: ${errorMessage}`;
   }

@@ -71,3 +71,13 @@ fetchLogs();
 
 // Poll every 3 seconds
 setInterval(fetchLogs, 10000);
+
+async function clearLogs() {
+  try {
+    await fetch('/api/logs', { method: 'DELETE' });
+    fetchLogs();
+  } catch (e) {
+    console.error('Error clearing logs', e);
+  }
+}
+window.clearLogs = clearLogs;

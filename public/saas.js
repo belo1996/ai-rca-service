@@ -140,4 +140,8 @@ async function disconnectRepo(repoId) {
 window.disconnectRepo = disconnectRepo;
 
 // Load on start
+// Load on start
 loadDashboard();
+
+// Expose refresh function
+window.fetchRepos = loadConnectedRepos;

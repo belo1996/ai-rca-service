@@ -30,7 +30,7 @@ async function checkAuthStatus() {
       if (toggle && statusText) {
         toggle.checked = data.isActive;
         statusText.textContent = data.isActive ? 'Service Active' : 'Service Disabled';
-        statusText.style.color = data.isActive ? 'var(--success)' : 'var(--text-secondary)';
+        statusText.className = data.isActive ? 'status-text active' : 'status-text disabled';
         
         // Remove old listener to prevent duplicates if called multiple times
         const newToggle = toggle.cloneNode(true);
@@ -39,7 +39,7 @@ async function checkAuthStatus() {
         newToggle.addEventListener('change', async (e) => {
           const isActive = e.target.checked;
           statusText.textContent = isActive ? 'Service Active' : 'Service Disabled';
-          statusText.style.color = isActive ? 'var(--success)' : 'var(--text-secondary)';
+          statusText.className = isActive ? 'status-text active' : 'status-text disabled';
           
           try {
             await fetch('/api/user/toggle', {
@@ -50,6 +50,8 @@ async function checkAuthStatus() {
           } catch (err) {
             console.error('Error toggling service:', err);
             e.target.checked = !isActive; // Revert on error
+            statusText.textContent = !isActive ? 'Service Active' : 'Service Disabled';
+            statusText.className = !isActive ? 'status-text active' : 'status-text disabled';
           }
         });
       }
@@ -77,26 +79,106 @@ async function checkAuthStatus() {
 
 async function loadSettings() {
   try {
-    const response = await fetch('/api/config');
-    const configs = await response.json();
+    const response = await fetch('/api/settings');
+    if (response.status === 401) return; // Not logged in
     
-    configs.forEach(config => {
-      const input = document.getElementById(config.key);
-      if (input) {
-        input.value = config.value;
+    const settings = await response.json();
+    
+    // Email List Logic
+    const emailListContainer = document.getElementById('email-list');
+    const hiddenEmailInput = document.getElementById('notification_emails');
+    const newEmailInput = document.getElementById('new-email-input');
+    const addEmailBtn = document.getElementById('add-email-btn');
+    
+    let emails = settings.notification_emails ? settings.notification_emails.split(',').map(e => e.trim()).filter(e => e) : [];
+    
+    function renderEmails() {
+      emailListContainer.innerHTML = '';
+      emails.forEach((email, index) => {
+        const li = document.createElement('li');
+        li.className = 'email-item';
+        li.innerHTML = `
+          <span>${email}</span>
+          <button type="button" class="remove-email-btn" data-index="${index}">&times;</button>
+        `;
+        emailListContainer.appendChild(li);
+      });
+      hiddenEmailInput.value = emails.join(',');
+    }
+    
+    function addEmail() {
+      const email = newEmailInput.value.trim();
+      if (email && email.includes('@')) {
+        if (!emails.includes(email)) {
+          emails.push(email);
+          renderEmails();
+          newEmailInput.value = '';
+        } else {
+          alert('Email already exists in the list.');
+        }
+      } else {
+        alert('Please enter a valid email address.');
+      }
+    }
+    
+    if (addEmailBtn) {
+      // Remove existing listeners to avoid duplicates if loadSettings is called multiple times
+      const newAddBtn = addEmailBtn.cloneNode(true);
+      addEmailBtn.parentNode.replaceChild(newAddBtn, addEmailBtn);
+      
+      newAddBtn.addEventListener('click', addEmail);
+      
+      // Allow Enter key to add email
+      newEmailInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addEmail();
+        }
+      });
+    }
+    
+    // Event delegation for remove buttons
+    emailListContainer.addEventListener('click', (e) => {
+      if (e.target.classList.contains('remove-email-btn')) {
+        const index = parseInt(e.target.getAttribute('data-index'));
+        emails.splice(index, 1);
+        renderEmails();
       }
     });
+
+    renderEmails();
+    
+    const autoDetect = document.getElementById('auto_detect_developer');
+    if (autoDetect) autoDetect.checked = settings.auto_detect_developer === 1;
+    
+    const modelSelect = document.getElementById('ai_model');
+    if (modelSelect) modelSelect.value = settings.ai_model || 'gpt-4o';
+    
+    const deepThinking = document.getElementById('deep_thinking');
+    if (deepThinking) deepThinking.checked = settings.deep_thinking === 1;
+
+    const sendEmails = document.getElementById('send_emails');
+    const emailContainer = document.getElementById('email-settings-container');
+
+    if (sendEmails) {
+      sendEmails.checked = settings.send_emails === 1;
+      
+      // Initial visibility
+      if (emailContainer) {
+        emailContainer.style.display = sendEmails.checked ? 'block' : 'none';
+      }
+
+      // Toggle listener
+      sendEmails.addEventListener('change', (e) => {
+        if (emailContainer) {
+          emailContainer.style.display = e.target.checked ? 'block' : 'none';
+        }
+      });
+    }
+
   } catch (error) {
     console.error('Error loading settings:', error);
   }
-}
-
-async function saveSetting(key, value, encrypted = false) {
-  await fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key, value, encrypted }),
-  });
 }
 
 if (saveBtn) {
@@ -108,18 +190,28 @@ if (saveBtn) {
     messageDiv.className = '';
 
     try {
-      const developerEmail = document.getElementById('DEVELOPER_EMAIL').value;
+      const notification_emails = document.getElementById('notification_emails').value;
+      const auto_detect_developer = document.getElementById('auto_detect_developer').checked;
+      const ai_model = document.getElementById('ai_model').value;
+      const deep_thinking = document.getElementById('deep_thinking').checked;
+      const send_emails = document.getElementById('send_emails').checked;
       
-      if (developerEmail) {
-        await saveSetting('DEVELOPER_EMAIL', developerEmail, false);
-      }
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notification_emails,
+          auto_detect_developer,
+          ai_model,
+          deep_thinking,
+          send_emails
+        })
+      });
 
       messageDiv.textContent = 'Settings saved successfully!';
       messageDiv.className = 'success';
       
-      // Reload to show masked values
       await loadSettings();
-      await checkAuthStatus(); // Refresh auth status UI
     } catch (error) {
       console.error('Error saving settings:', error);
       messageDiv.textContent = 'Error saving settings.';

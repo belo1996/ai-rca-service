@@ -39,6 +39,9 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
     user_id TEXT PRIMARY KEY,
     notification_emails TEXT,
+    auto_detect_developer INTEGER DEFAULT 1,
+    ai_model TEXT DEFAULT 'gpt-4o',
+    deep_thinking INTEGER DEFAULT 0,
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
   
@@ -56,6 +59,20 @@ try {
 } catch (error: any) {
   // Column likely already exists, ignore
 }
+
+// Migration: Add new settings columns
+try {
+  db.exec('ALTER TABLE settings ADD COLUMN auto_detect_developer INTEGER DEFAULT 1');
+} catch (e) {}
+try {
+  db.exec("ALTER TABLE settings ADD COLUMN ai_model TEXT DEFAULT 'gpt-4o'");
+} catch (e) {}
+try {
+  db.exec('ALTER TABLE settings ADD COLUMN deep_thinking INTEGER DEFAULT 0');
+} catch (e) {}
+try {
+  db.exec('ALTER TABLE settings ADD COLUMN send_emails INTEGER DEFAULT 1');
+} catch (e) {}
 
 export interface User {
   id: string;
@@ -193,6 +210,50 @@ export const getRepository = (repoId: string): Repository | undefined => {
 export const deleteRepository = (repoId: string) => {
   const stmt = db.prepare('DELETE FROM repositories WHERE id = ?');
   stmt.run(repoId);
+};
+
+// Settings Operations
+export interface UserSettings {
+  user_id: string;
+  notification_emails?: string;
+  auto_detect_developer?: number; // 1 or 0
+  ai_model?: string;
+  deep_thinking?: number; // 1 or 0
+  send_emails?: number; // 1 or 0
+}
+
+export const getSettings = (userId: string): UserSettings => {
+  const stmt = db.prepare('SELECT * FROM settings WHERE user_id = ?');
+  const row = stmt.get(userId) as UserSettings | undefined;
+  return row || { 
+    user_id: userId, 
+    notification_emails: '', 
+    auto_detect_developer: 1, 
+    ai_model: 'gpt-4o', 
+    deep_thinking: 0,
+    send_emails: 1
+  };
+};
+
+export const upsertSettings = (settings: UserSettings) => {
+  const stmt = db.prepare(`
+    INSERT INTO settings (user_id, notification_emails, auto_detect_developer, ai_model, deep_thinking, send_emails)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      notification_emails = excluded.notification_emails,
+      auto_detect_developer = excluded.auto_detect_developer,
+      ai_model = excluded.ai_model,
+      deep_thinking = excluded.deep_thinking,
+      send_emails = excluded.send_emails
+  `);
+  stmt.run(
+    settings.user_id, 
+    settings.notification_emails || '', 
+    settings.auto_detect_developer ?? 1, 
+    settings.ai_model || 'gpt-4o', 
+    settings.deep_thinking ?? 0,
+    settings.send_emails ?? 1
+  );
 };
 
 export default db;
