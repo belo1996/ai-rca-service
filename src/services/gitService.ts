@@ -331,7 +331,7 @@ export const getPreviousCommits = async (repoId: string, branchName: string, tok
         version: branchName.replace('refs/heads/', ''),
         versionType: GitInterfaces.GitVersionType.Branch
       },
-      top: top
+      $top: top
     };
 
     const commits = await gitApi.getCommits(repoId, searchCriteria, project);
